@@ -1,0 +1,259 @@
+Script started on Wed 12 Oct 2016 09:04:01 PM EDT
+]0;wenqi@memflex: ~/Downloads/memFlex-master/corewenqi@memflex:~/Downloads/memFlex-master/core$ sudo mk[Kake
+[sudo] password for wenqi: 
+make -C /lib/modules/3.14.4/build M=/home/wenqi/Downloads/memFlex-master/core modules
+make[1]: Entering directory `/home/wenqi/Downloads/linux-3.14.4'
+  CC [M]  /home/wenqi/Downloads/memFlex-master/core/mem_swap.o
+/home/wenqi/Downloads/memFlex-master/core/mem_swap.c: In function ‘memswap_init’:
+/home/wenqi/Downloads/memFlex-master/core/mem_swap.c:421:2: warning: ISO C90 forbids mixed declarations and code [-Wdeclaration-after-statement]
+  gfp_t gfp = GFP_KERNEL;   
+  ^
+/home/wenqi/Downloads/memFlex-master/core/mem_swap.c:451:16: warning: operation on ‘pages_to_dump’ may be undefined [-Wsequence-point]
+  pages_to_dump = pages_to_dump = 0;
+                ^
+/home/wenqi/Downloads/memFlex-master/core/mem_swap.c: In function ‘fastswap_lru_swapin_thread’:
+/home/wenqi/Downloads/memFlex-master/core/mem_swap.c:498:5: warning: ISO C90 forbids mixed declarations and code [-Wdeclaration-after-statement]
+     int numofslots;
+     ^
+/home/wenqi/Downloads/memFlex-master/core/mem_swap.c:508:5: warning: ISO C90 forbids mixed declarations and code [-Wdeclaration-after-statement]
+     int i;
+     ^
+/home/wenqi/Downloads/memFlex-master/core/mem_swap.c: In function ‘fastswap_bud_alloc’:
+/home/wenqi/Downloads/memFlex-master/core/mem_swap.c:716:3: warning: ISO C90 forbids mixed declarations and code [-Wdeclaration-after-statement]
+   int i;
+   ^
+/home/wenqi/Downloads/memFlex-master/core/mem_swap.c:750:10: warning: assignment makes integer from pointer without a cast [enabled by default]
+  *handle = (char *)fsbdr - PAGE_SIZE + (PAGE_SIZE / numofslots) * bud;
+          ^
+/home/wenqi/Downloads/memFlex-master/core/mem_swap.c: In function ‘mempipe_dump_shm’:
+/home/wenqi/Downloads/memFlex-master/core/mem_swap.c:860:2: warning: ISO C90 forbids mixed declarations and code [-Wdeclaration-after-statement]
+  struct page *page;
+  ^
+/home/wenqi/Downloads/memFlex-master/core/mem_swap.c:926:4: warning: ISO C90 forbids mixed declarations and code [-Wdeclaration-after-statement]
+    unsigned long diskswap_offset = first_zero_bit(diskswap_freelist, PAGE_SIZE * BITS_PER_BYTE * 40);
+    ^
+/home/wenqi/Downloads/memFlex-master/core/mem_swap.c:932:4: warning: ISO C90 forbids mixed declarations and code [-Wdeclaration-after-statement]
+    struct fastswap_bud *fs_bud = (struct fastswap_bud *)((char *)gsis->shm + dump_offset*fastswap_entry_size + PAGE_SIZE);
+    ^
+/home/wenqi/Downloads/memFlex-master/core/mem_swap.c:944:4: warning: ISO C90 forbids mixed declarations and code [-Wdeclaration-after-statement]
+    struct reverse_swap_page_table_entry *rspt_entry = find_reverse_swap_page_table(diskswap_offset); // define find_reverse_swap_page_table function
+    ^
+/home/wenqi/Downloads/memFlex-master/core/mem_swap.c:954:4: warning: ISO C90 forbids mixed declarations and code [-Wdeclaration-after-statement]
+    struct swap_page_table_entry *spt_entry;
+    ^
+/home/wenqi/Downloads/memFlex-master/core/mem_swap.c:851:8: warning: unused variable ‘data’ [-Wunused-variable]
+  char *data;
+        ^
+/home/wenqi/Downloads/memFlex-master/core/mem_swap.c:850:18: warning: unused variable ‘i’ [-Wunused-variable]
+     int ret = 0, i;
+                  ^
+/home/wenqi/Downloads/memFlex-master/core/mem_swap.c:849:23: warning: unused variable ‘da’ [-Wunused-variable]
+     struct dump_args *da = (struct dump_args *)args;
+                       ^
+/home/wenqi/Downloads/memFlex-master/core/mem_swap.c: In function ‘mempipe_swap_writepage’:
+/home/wenqi/Downloads/memFlex-master/core/mem_swap.c:1236:2: warning: ISO C90 forbids mixed declarations and code [-Wdeclaration-after-statement]
+  unsigned char* dst = (unsigned char*)kmalloc(lzo1x_worst_compress(PAGE_SIZE),GFP_ATOMIC);
+  ^
+/home/wenqi/Downloads/memFlex-master/core/mem_swap.c:1253:5: warning: ISO C90 forbids mixed declarations and code [-Wdeclaration-after-statement]
+     char *addr;
+     ^
+/home/wenqi/Downloads/memFlex-master/core/mem_swap.c:1279:5: warning: ISO C90 forbids mixed declarations and code [-Wdeclaration-after-statement]
+     struct swap_page_table_entry *spt_entry = find_swap_page_table(offset);
+     ^
+/home/wenqi/Downloads/memFlex-master/core/mem_swap.c: In function ‘mempipe_swap_readpage’:
+/home/wenqi/Downloads/memFlex-master/core/mem_swap.c:1369:5: warning: ISO C90 forbids mixed declarations and code [-Wdeclaration-after-statement]
+     int r;
+     ^
+/home/wenqi/Downloads/memFlex-master/core/mem_swap.c:1406:36: warning: assignment makes integer from pointer without a cast [enabled by default]
+             bio->bi_iter.bi_sector = spt_entry->address; 
+                                    ^
+/home/wenqi/Downloads/memFlex-master/core/mem_swap.c: In function ‘end_swap_bio_read_compressed_page’:
+/home/wenqi/Downloads/memFlex-master/core/mem_swap.c:1447:2: warning: ISO C90 forbids mixed declarations and code [-Wdeclaration-after-statement]
+  struct swap_page_table_entry *spt_entry = find_swap_page_table(offset);
+  ^
+/home/wenqi/Downloads/memFlex-master/core/mem_swap.c:1466:3: warning: ISO C90 forbids mixed declarations and code [-Wdeclaration-after-statement]
+   size_t dlen = PAGE_SIZE;
+   ^
+/home/wenqi/Downloads/memFlex-master/core/mem_swap.c:1480:3: warning: ISO C90 forbids mixed declarations and code [-Wdeclaration-after-statement]
+   unsigned long move_offset_add;
+   ^
+/home/wenqi/Downloads/memFlex-master/core/mem_swap.c:1481:10: warning: passing argument 1 of ‘find_reverse_swap_page_table’ makes integer from pointer without a cast [enabled by default]
+   struct reverse_swap_page_table_entry *rspt_entry = find_reverse_swap_page_table(spt_entry->address);
+          ^
+/home/wenqi/Downloads/memFlex-master/core/mem_swap.c:781:39: note: expected ‘long unsigned int’ but argument is of type ‘char *’
+ struct reverse_swap_page_table_entry *find_reverse_swap_page_table(unsigned long address){
+                                       ^
+In file included from include/asm-generic/percpu.h:6:0,
+                 from /home/wenqi/Downloads/linux-3.14.4/arch/x86/include/asm/percpu.h:523,
+                 from /home/wenqi/Downloads/linux-3.14.4/arch/x86/include/asm/preempt.h:5,
+                 from include/linux/preempt.h:18,
+                 from include/linux/spinlock.h:50,
+                 from include/linux/mmzone.h:7,
+                 from include/linux/gfp.h:5,
+                 from include/linux/mm.h:9,
+                 from /home/wenqi/Downloads/memFlex-master/core/mem_swap.h:1,
+                 from /home/wenqi/Downloads/memFlex-master/core/mem_swap.c:1:
+/home/wenqi/Downloads/memFlex-master/core/mem_swap.c: At top level:
+/home/wenqi/Downloads/memFlex-master/core/mem_swap.c:110:29: warning: ‘fastswap_dstmem’ defined but not used [-Wunused-variable]
+ static DEFINE_PER_CPU(u8 *, fastswap_dstmem);
+                             ^
+include/linux/percpu-defs.h:84:19: note: in definition of macro ‘DEFINE_PER_CPU_SECTION’
+  __typeof__(type) name
+                   ^
+/home/wenqi/Downloads/memFlex-master/core/mem_swap.c:110:8: note: in expansion of macro ‘DEFINE_PER_CPU’
+ static DEFINE_PER_CPU(u8 *, fastswap_dstmem);
+        ^
+/home/wenqi/Downloads/memFlex-master/core/mem_swap.c: In function ‘fastswap_lru_swapin_thread’:
+/home/wenqi/Downloads/memFlex-master/core/mem_swap.c:684:9: warning: ‘start_mm’ may be used uninitialized in this function [-Wmaybe-uninitialized]
+    mmput(start_mm);
+         ^
+/home/wenqi/Downloads/memFlex-master/core/mem_swap.c: In function ‘mempipe_dump_shm’:
+/home/wenqi/Downloads/memFlex-master/core/mem_swap.c:994:12: warning: ‘bio’ may be used uninitialized in this function [-Wmaybe-uninitialized]
+  submit_bio(WRITE, bio);
+            ^
+/home/wenqi/Downloads/memFlex-master/core/mem_swap.c:993:13: warning: ‘page’ may be used uninitialized in this function [-Wmaybe-uninitialized]
+  unlock_page(page);
+             ^
+/home/wenqi/Downloads/memFlex-master/core/mem_swap.c: In function ‘end_swap_bio_read_compressed_page’:
+/home/wenqi/Downloads/memFlex-master/core/mem_swap.c:1492:10: warning: ‘addr’ may be used uninitialized in this function [-Wmaybe-uninitialized]
+      res = fastswap_bud_alloc(PAGE2K_pool, 2, 2, GFP_KERNEL, move_spt_entry->offset, addr, &slotoffset);
+          ^
+/home/wenqi/Downloads/memFlex-master/core/mem_swap.c:1468:31: warning: ‘offset_add’ may be used uninitialized in this function [-Wmaybe-uninitialized]
+      r = lzo1x_decompress_safe((unsigned char*)kmap_atomic(page)+offset_add, spt_entry->length, dst, &dlen);
+                               ^
+/home/wenqi/Downloads/memFlex-master/core/mem_swap.c:1494:16: warning: ‘numofslots’ may be used uninitialized in this function [-Wmaybe-uninitialized]
+        }else if(numofslots == 4){
+                ^
+In file included from include/linux/linkage.h:4:0,
+                 from include/linux/preempt.h:9,
+                 from include/linux/spinlock.h:50,
+                 from include/linux/mmzone.h:7,
+                 from include/linux/gfp.h:5,
+                 from include/linux/mm.h:9,
+                 from /home/wenqi/Downloads/memFlex-master/core/mem_swap.h:1,
+                 from /home/wenqi/Downloads/memFlex-master/core/mem_swap.c:1:
+include/linux/compiler.h:330:20: error: call to ‘__compiletime_assert_1474’ declared with attribute error: BUILD_BUG_ON failed: __same_type((page), struct page *)
+    prefix ## suffix();    \
+                    ^
+include/linux/compiler.h:335:2: note: in expansion of macro ‘__compiletime_assert’
+  __compiletime_assert(condition, msg, prefix, suffix)
+  ^
+include/linux/compiler.h:347:2: note: in expansion of macro ‘_compiletime_assert’
+  _compiletime_assert(condition, msg, __compiletime_assert_, __LINE__)
+  ^
+include/linux/bug.h:50:37: note: in expansion of macro ‘compiletime_assert’
+ #define BUILD_BUG_ON_MSG(cond, msg) compiletime_assert(!(cond), msg)
+                                     ^
+include/linux/bug.h:74:2: note: in expansion of macro ‘BUILD_BUG_ON_MSG’
+  BUILD_BUG_ON_MSG(condition, "BUILD_BUG_ON failed: " #condition)
+  ^
+include/linux/highmem.h:125:2: note: in expansion of macro ‘BUILD_BUG_ON’
+  BUILD_BUG_ON(__same_type((addr), struct page *));       \
+  ^
+/home/wenqi/Downloads/memFlex-master/core/mem_swap.c:1474:6: note: in expansion of macro ‘kunmap_atomic’
+      kunmap_atomic(page);
+      ^
+include/linux/compiler.h:330:20: error: call to ‘__compiletime_assert_1507’ declared with attribute error: BUILD_BUG_ON failed: __same_type((page), struct page *)
+    prefix ## suffix();    \
+                    ^
+include/linux/compiler.h:335:2: note: in expansion of macro ‘__compiletime_assert’
+  __compiletime_assert(condition, msg, prefix, suffix)
+  ^
+include/linux/compiler.h:347:2: note: in expansion of macro ‘_compiletime_assert’
+  _compiletime_assert(condition, msg, __compiletime_assert_, __LINE__)
+  ^
+include/linux/bug.h:50:37: note: in expansion of macro ‘compiletime_assert’
+ #define BUILD_BUG_ON_MSG(cond, msg) compiletime_assert(!(cond), msg)
+                                     ^
+include/linux/bug.h:74:2: note: in expansion of macro ‘BUILD_BUG_ON_MSG’
+  BUILD_BUG_ON_MSG(condition, "BUILD_BUG_ON failed: " #condition)
+  ^
+include/linux/highmem.h:125:2: note: in expansion of macro ‘BUILD_BUG_ON’
+  BUILD_BUG_ON(__same_type((addr), struct page *));       \
+  ^
+/home/wenqi/Downloads/memFlex-master/core/mem_swap.c:1507:3: note: in expansion of macro ‘kunmap_atomic’
+   kunmap_atomic(page);
+   ^
+/home/wenqi/Downloads/memFlex-master/core/mem_swap.c: In function ‘mempipe_swap_writepage’:
+/home/wenqi/Downloads/memFlex-master/core/mem_swap.c:1257:10: warning: ‘addr’ may be used uninitialized in this function [-Wmaybe-uninitialized]
+      res = fastswap_bud_alloc(PAGE4K_pool, 3, 1, GFP_KERNEL, offset, addr, &slotoffset);
+          ^
+In file included from include/linux/linkage.h:4:0,
+                 from include/linux/preempt.h:9,
+                 from include/linux/spinlock.h:50,
+                 from include/linux/mmzone.h:7,
+                 from include/linux/gfp.h:5,
+                 from include/linux/mm.h:9,
+                 from /home/wenqi/Downloads/memFlex-master/core/mem_swap.h:1,
+                 from /home/wenqi/Downloads/memFlex-master/core/mem_swap.c:1:
+include/linux/compiler.h:330:20: error: call to ‘__compiletime_assert_1248’ declared with attribute error: BUILD_BUG_ON failed: __same_type((page), struct page *)
+    prefix ## suffix();    \
+                    ^
+include/linux/compiler.h:335:2: note: in expansion of macro ‘__compiletime_assert’
+  __compiletime_assert(condition, msg, prefix, suffix)
+  ^
+include/linux/compiler.h:347:2: note: in expansion of macro ‘_compiletime_assert’
+  _compiletime_assert(condition, msg, __compiletime_assert_, __LINE__)
+  ^
+include/linux/bug.h:50:37: note: in expansion of macro ‘compiletime_assert’
+ #define BUILD_BUG_ON_MSG(cond, msg) compiletime_assert(!(cond), msg)
+                                     ^
+include/linux/bug.h:74:2: note: in expansion of macro ‘BUILD_BUG_ON_MSG’
+  BUILD_BUG_ON_MSG(condition, "BUILD_BUG_ON failed: " #condition)
+  ^
+include/linux/highmem.h:125:2: note: in expansion of macro ‘BUILD_BUG_ON’
+  BUILD_BUG_ON(__same_type((addr), struct page *));       \
+  ^
+/home/wenqi/Downloads/memFlex-master/core/mem_swap.c:1248:5: note: in expansion of macro ‘kunmap_atomic’
+     kunmap_atomic(page);
+     ^
+include/linux/compiler.h:330:20: error: call to ‘__compiletime_assert_1259’ declared with attribute error: BUILD_BUG_ON failed: __same_type((page), struct page *)
+    prefix ## suffix();    \
+                    ^
+include/linux/compiler.h:335:2: note: in expansion of macro ‘__compiletime_assert’
+  __compiletime_assert(condition, msg, prefix, suffix)
+  ^
+include/linux/compiler.h:347:2: note: in expansion of macro ‘_compiletime_assert’
+  _compiletime_assert(condition, msg, __compiletime_assert_, __LINE__)
+  ^
+include/linux/bug.h:50:37: note: in expansion of macro ‘compiletime_assert’
+ #define BUILD_BUG_ON_MSG(cond, msg) compiletime_assert(!(cond), msg)
+                                     ^
+include/linux/bug.h:74:2: note: in expansion of macro ‘BUILD_BUG_ON_MSG’
+  BUILD_BUG_ON_MSG(condition, "BUILD_BUG_ON failed: " #condition)
+  ^
+include/linux/highmem.h:125:2: note: in expansion of macro ‘BUILD_BUG_ON’
+  BUILD_BUG_ON(__same_type((addr), struct page *));       \
+  ^
+/home/wenqi/Downloads/memFlex-master/core/mem_swap.c:1259:6: note: in expansion of macro ‘kunmap_atomic’
+      kunmap_atomic(page);
+      ^
+/home/wenqi/Downloads/memFlex-master/core/mem_swap.c: In function ‘mempipe_swap_readpage’:
+include/linux/compiler.h:330:20: error: call to ‘__compiletime_assert_1394’ declared with attribute error: BUILD_BUG_ON failed: __same_type((page), struct page *)
+    prefix ## suffix();    \
+                    ^
+include/linux/compiler.h:335:2: note: in expansion of macro ‘__compiletime_assert’
+  __compiletime_assert(condition, msg, prefix, suffix)
+  ^
+include/linux/compiler.h:347:2: note: in expansion of macro ‘_compiletime_assert’
+  _compiletime_assert(condition, msg, __compiletime_assert_, __LINE__)
+  ^
+include/linux/bug.h:50:37: note: in expansion of macro ‘compiletime_assert’
+ #define BUILD_BUG_ON_MSG(cond, msg) compiletime_assert(!(cond), msg)
+                                     ^
+include/linux/bug.h:74:2: note: in expansion of macro ‘BUILD_BUG_ON_MSG’
+  BUILD_BUG_ON_MSG(condition, "BUILD_BUG_ON failed: " #condition)
+  ^
+include/linux/highmem.h:125:2: note: in expansion of macro ‘BUILD_BUG_ON’
+  BUILD_BUG_ON(__same_type((addr), struct page *));       \
+  ^
+/home/wenqi/Downloads/memFlex-master/core/mem_swap.c:1394:6: note: in expansion of macro ‘kunmap_atomic’
+      kunmap_atomic(page);
+      ^
+make[2]: *** [/home/wenqi/Downloads/memFlex-master/core/mem_swap.o] Error 1
+make[1]: *** [_module_/home/wenqi/Downloads/memFlex-master/core] Error 2
+make[1]: Leaving directory `/home/wenqi/Downloads/linux-3.14.4'
+make: *** [default] Error 2
+]0;wenqi@memflex: ~/Downloads/memFlex-master/corewenqi@memflex:~/Downloads/memFlex-master/core$ exit
+
+Script done on Wed 12 Oct 2016 09:04:11 PM EDT

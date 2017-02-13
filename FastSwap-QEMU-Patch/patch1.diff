@@ -1,0 +1,29 @@
+*** qemu-2.0.0/qemu-char.c	2014-04-17 08:44:45.000000000 -0500
+--- memflex-qemu-2.0.0/qemu-char.c	2016-07-14 23:49:59.378953473 -0500
+***************
+*** 3401,3411 ****
+  
+  void qemu_chr_fe_claim_no_fail(CharDriverState *s)
+  {
+!     if (qemu_chr_fe_claim(s) != 0) {
+          fprintf(stderr, "%s: error chardev \"%s\" already used\n",
+                  __func__, s->label);
+          exit(1);
+      }
+  }
+  
+  void qemu_chr_fe_release(CharDriverState *s)
+--- 3401,3413 ----
+  
+  void qemu_chr_fe_claim_no_fail(CharDriverState *s)
+  {
+!    /* 
+!    if (qemu_chr_fe_claim(s) != 0) {
+          fprintf(stderr, "%s: error chardev \"%s\" already used\n",
+                  __func__, s->label);
+          exit(1);
+      }
++    */
+  }
+  
+  void qemu_chr_fe_release(CharDriverState *s)

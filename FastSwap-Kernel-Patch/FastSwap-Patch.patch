@@ -1,0 +1,723 @@
+diff -ur linux-3.14.4/include/asm-generic/delay.h linux-3.14.4-fastswap/include/asm-generic/delay.h
+--- linux-3.14.4/include/asm-generic/delay.h	2014-05-13 07:33:14.000000000 -0400
++++ linux-3.14.4-fastswap/include/asm-generic/delay.h	2016-10-13 15:19:46.000000000 -0400
+@@ -10,6 +10,7 @@
+ extern void __const_udelay(unsigned long xloops);
+ extern void __delay(unsigned long loops);
+ 
++
+ /*
+  * The weird n/20000 thing suppresses a "comparison is always false due to
+  * limited range of data type" warning with non-const 8-bit arguments.
+diff -ur linux-3.14.4/include/linux/mm_types.h linux-3.14.4-fastswap/include/linux/mm_types.h
+--- linux-3.14.4/include/linux/mm_types.h	2014-05-13 07:33:14.000000000 -0400
++++ linux-3.14.4-fastswap/include/linux/mm_types.h	2016-09-24 22:38:47.000000000 -0400
+@@ -195,6 +195,11 @@
+ #ifdef LAST_CPUPID_NOT_IN_PAGE_FLAGS
+ 	int _last_cpupid;
+ #endif
++
++	int idx;
++	unsigned long rmap_addrs[10];
++	struct vm_area_struct* rmap_vmas[10];
++
+ }
+ /*
+  * The struct page can be forced to be double word aligned so that atomic ops
+diff -ur linux-3.14.4/include/linux/swap.h linux-3.14.4-fastswap/include/linux/swap.h
+--- linux-3.14.4/include/linux/swap.h	2014-05-13 07:33:14.000000000 -0400
++++ linux-3.14.4-fastswap/include/linux/swap.h	2016-09-24 22:38:47.000000000 -0400
+@@ -253,6 +253,26 @@
+ 	struct work_struct discard_work; /* discard worker */
+ 	struct swap_cluster_info discard_cluster_head; /* list head of discard clusters */
+ 	struct swap_cluster_info discard_cluster_tail; /* list tail of discard clusters */
++	
++	char *shm; /*swap to (shared) memory*/
++       
++	unsigned long *mapper; /*mapping from contiguous address to non-continguous in the shared memory*/
++	unsigned long shm_start;
++        unsigned long shm_end;
++        unsigned long disk_start;
++        unsigned long disk_end;
++        unsigned long mask;
++	int is_shm;
++	int dump_thread_running;
++	int dump_thread_should_run;
++	spinlock_t dump_lock;
++
++};
++
++struct swapin_mdata{
++        struct vm_area_struct *vma;
++        pmd_t *pmd;
++        unsigned long address;
+ };
+ 
+ struct swap_list_t {
+diff -ur linux-3.14.4/include/linux/swapfile.h linux-3.14.4-fastswap/include/linux/swapfile.h
+--- linux-3.14.4/include/linux/swapfile.h	2014-05-13 07:33:14.000000000 -0400
++++ linux-3.14.4-fastswap/include/linux/swapfile.h	2016-09-24 22:38:47.000000000 -0400
+@@ -10,4 +10,6 @@
+ extern struct swap_info_struct *swap_info[];
+ extern int try_to_unuse(unsigned int, bool, unsigned long);
+ 
++void set_memswap_init_size(unsigned long init_size);
++
+ #endif /* _LINUX_SWAPFILE_H */
+diff -ur linux-3.14.4/mm/ksm.c linux-3.14.4-fastswap/mm/ksm.c
+--- linux-3.14.4/mm/ksm.c	2014-05-13 07:33:14.000000000 -0400
++++ linux-3.14.4-fastswap/mm/ksm.c	2016-10-13 15:10:42.000000000 -0400
+@@ -41,6 +41,10 @@
+ #include <asm/tlbflush.h>
+ #include "internal.h"
+ 
++EXPORT_SYMBOL(ksm_might_need_to_copy);
++
++
++
+ #ifdef CONFIG_NUMA
+ #define NUMA(x)		(x)
+ #define DO_NUMA(x)	do { (x); } while (0)
+diff -ur linux-3.14.4/mm/page-writeback.c linux-3.14.4-fastswap/mm/page-writeback.c
+--- linux-3.14.4/mm/page-writeback.c	2014-05-13 07:33:14.000000000 -0400
++++ linux-3.14.4-fastswap/mm/page-writeback.c	2016-09-24 22:38:47.000000000 -0400
+@@ -2376,6 +2376,11 @@
+ 
+ 		spin_lock_irqsave(&mapping->tree_lock, flags);
+ 		ret = TestClearPageWriteback(page);
++		
++		if(!ret){
++			printk("~~~~~~~~~~~~~~ ret1 = %d\n", ret);
++		}
++		
+ 		if (ret) {
+ 			radix_tree_tag_clear(&mapping->page_tree,
+ 						page_index(page),
+@@ -2388,6 +2393,10 @@
+ 		spin_unlock_irqrestore(&mapping->tree_lock, flags);
+ 	} else {
+ 		ret = TestClearPageWriteback(page);
++		
++		if(!ret){
++			printk("~~~~~~~~~~~~~~ ret1 = %d\n", ret);
++		}
+ 	}
+ 	if (ret) {
+ 		mem_cgroup_dec_page_stat(page, MEM_CGROUP_STAT_WRITEBACK);
+diff -ur linux-3.14.4/mm/page_io.c linux-3.14.4-fastswap/mm/page_io.c
+--- linux-3.14.4/mm/page_io.c	2014-05-13 07:33:14.000000000 -0400
++++ linux-3.14.4-fastswap/mm/page_io.c	2016-11-05 15:01:22.000000000 -0400
+@@ -24,6 +24,42 @@
+ #include <linux/blkdev.h>
+ #include <asm/pgtable.h>
+ 
++EXPORT_SYMBOL(swap_writepage);
++
++typedef int (* swap_writepage_hook)(struct page *page, struct writeback_control *wbc, void (*end_write_func)(struct bio *, int));
++
++typedef int (* swap_readpage_hook)(struct page *page);
++
++typedef struct swapin_mdata* (* get_swapin_mdata_hook)(unsigned long offset);
++
++bool mempipe_installed = false;
++int (* __my_swap_writepage)(struct page *page, struct writeback_control *wbc, void (*end_write_func)(struct bio *, int)) = NULL;
++int (* __my_swap_readpage)(struct page *page) = NULL;
++struct swapin_mdata* (* __my_get_swapin_mdata)(unsigned long offset) = NULL;
++
++void swap_bind_hook(swap_writepage_hook h1, swap_readpage_hook h2, get_swapin_mdata_hook h3)                                                                     
++{
++        mempipe_installed = true;
++        __my_swap_writepage = h1;
++        __my_swap_readpage = h2;
++        __my_get_swapin_mdata = h3;
++        printk("swap_bind_hook...\n");
++}
++
++void swap_unbind_hook(void)
++{
++        mempipe_installed = false;
++        __my_swap_writepage = NULL;
++        __my_swap_readpage = NULL;
++        __my_get_swapin_mdata = NULL;
++        printk("swap_unbind_hook...\n");
++}
++
++EXPORT_SYMBOL(swap_bind_hook);
++EXPORT_SYMBOL(swap_unbind_hook);
++
++
++
+ static struct bio *get_swap_bio(gfp_t gfp_flags,
+ 				struct page *page, bio_end_io_t end_io)
+ {
+@@ -42,6 +78,7 @@
+ 	}
+ 	return bio;
+ }
++EXPORT_SYMBOL(get_swap_bio);
+ 
+ void end_swap_bio_write(struct bio *bio, int err)
+ {
+@@ -68,6 +105,7 @@
+ 	end_page_writeback(page);
+ 	bio_put(bio);
+ }
++EXPORT_SYMBOL(end_swap_bio_write);
+ 
+ void end_swap_bio_read(struct bio *bio, int err)
+ {
+@@ -132,6 +170,7 @@
+ 	unlock_page(page);
+ 	bio_put(bio);
+ }
++EXPORT_SYMBOL(end_swap_bio_read);
+ 
+ int generic_swapfile_activate(struct swap_info_struct *sis,
+ 				struct file *swap_file,
+@@ -232,6 +271,10 @@
+ int swap_writepage(struct page *page, struct writeback_control *wbc)
+ {
+ 	int ret = 0;
++	pgoff_t offset;
++	swp_entry_t entry;
++
++	struct swap_info_struct *sis = page_swap_info(page);
+ 
+ 	if (try_to_free_swap(page)) {
+ 		unlock_page(page);
+@@ -243,7 +286,15 @@
+ 		end_page_writeback(page);
+ 		goto out;
+ 	}
+-	ret = __swap_writepage(page, wbc, end_swap_bio_write);
++	
++	entry.val = page_private(page);
++        offset = swp_offset(entry);
++
++	if(mempipe_installed == true && sis->is_shm == 1 && (offset > 0)){
++                ret = __my_swap_writepage(page, wbc, end_swap_bio_write);
++        }else{
++                ret = __swap_writepage(page, wbc, end_swap_bio_write);
++        }
+ out:
+ 	return ret;
+ }
+diff -ur linux-3.14.4/mm/pgtable-generic.c linux-3.14.4-fastswap/mm/pgtable-generic.c
+--- linux-3.14.4/mm/pgtable-generic.c	2014-05-13 07:33:14.000000000 -0400
++++ linux-3.14.4-fastswap/mm/pgtable-generic.c	2016-10-13 15:11:40.000000000 -0400
+@@ -16,6 +16,11 @@
+  * very seldom) called out from the p?d_none_or_clear_bad macros.
+  */
+ 
++EXPORT_SYMBOL(pmd_clear_bad);
++EXPORT_SYMBOL(pgd_clear_bad);
++EXPORT_SYMBOL(pud_clear_bad);
++
++
+ void pgd_clear_bad(pgd_t *pgd)
+ {
+ 	pgd_ERROR(*pgd);
+diff -ur linux-3.14.4/mm/rmap.c linux-3.14.4-fastswap/mm/rmap.c
+--- linux-3.14.4/mm/rmap.c	2014-05-13 07:33:14.000000000 -0400
++++ linux-3.14.4-fastswap/mm/rmap.c	2016-10-13 21:22:25.000000000 -0400
+@@ -60,8 +60,15 @@
+ 
+ #include <asm/tlbflush.h>
+ 
++#include <asm/pgtable.h>
++
+ #include "internal.h"
+ 
++EXPORT_SYMBOL(page_address_in_vma);
++EXPORT_SYMBOL(page_add_new_anon_rmap);
++EXPORT_SYMBOL(page_add_anon_rmap);
++
++
+ static struct kmem_cache *anon_vma_cachep;
+ static struct kmem_cache *anon_vma_chain_cachep;
+ 
+@@ -617,6 +624,13 @@
+ 		return NULL;
+ 
+ 	pte = pte_offset_map(pmd, address);
++	
++	/*Sometimes, we need the value of pte even if it is not present*/
++	if(sync == 8888){
++                pte_unmap(pte);
++                return pte;
++        }
++
+ 	/* Make a quick check before getting the lock */
+ 	if (!sync && !pte_present(*pte)) {
+ 		pte_unmap(pte);
+@@ -1607,6 +1621,8 @@
+ 	if (!anon_vma)
+ 		return ret;
+ 
++	page->idx = 0;
++
+ 	anon_vma_interval_tree_foreach(avc, &anon_vma->rb_root, pgoff, pgoff) {
+ 		struct vm_area_struct *vma = avc->vma;
+ 		unsigned long address = vma_address(page, vma);
+@@ -1615,6 +1631,14 @@
+ 			continue;
+ 
+ 		ret = rwc->rmap_one(page, vma, address, rwc->arg);
++		
++		if(page->idx < 10) {
++                        page->rmap_addrs[page->idx] = address;
++                        page->rmap_vmas[page->idx] = vma;
++                        page->idx++;
++                }
++
++
+ 		if (ret != SWAP_AGAIN)
+ 			break;
+ 		if (rwc->done && rwc->done(page))
+diff -ur linux-3.14.4/mm/shmem.c linux-3.14.4-fastswap/mm/shmem.c
+--- linux-3.14.4/mm/shmem.c	2014-05-13 07:33:14.000000000 -0400
++++ linux-3.14.4-fastswap/mm/shmem.c	2016-11-05 15:13:15.000000000 -0400
+@@ -42,6 +42,8 @@
+  * which makes it a completely usable filesystem.
+  */
+ 
++
++
+ #include <linux/xattr.h>
+ #include <linux/exportfs.h>
+ #include <linux/posix_acl.h>
+@@ -79,6 +81,10 @@
+ /* Symlink up to this size is kmalloc'ed instead of using a swappable page */
+ #define SHORT_SYMLINK_LEN 128
+ 
++
++EXPORT_SYMBOL(shmem_unuse);
++
++
+ /*
+  * shmem_fallocate and shmem_writepage communicate via inode->i_private
+  * (with i_mutex making sure that it has only one user at a time):
+diff -ur linux-3.14.4/mm/swap.c linux-3.14.4-fastswap/mm/swap.c
+--- linux-3.14.4/mm/swap.c	2014-05-13 07:33:14.000000000 -0400
++++ linux-3.14.4-fastswap/mm/swap.c	2016-10-13 14:29:55.000000000 -0400
+@@ -48,6 +48,10 @@
+  * This path almost never happens for VM activity - pages are normally
+  * freed via pagevecs.  But it gets used by networking.
+  */
++
++EXPORT_SYMBOL(activate_page);
++
++
+ static void __page_cache_release(struct page *page)
+ {
+ 	if (PageLRU(page)) {
+diff -ur linux-3.14.4/mm/swap_state.c linux-3.14.4-fastswap/mm/swap_state.c
+--- linux-3.14.4/mm/swap_state.c	2014-05-13 07:33:14.000000000 -0400
++++ linux-3.14.4-fastswap/mm/swap_state.c	2016-11-05 15:05:52.000000000 -0400
+@@ -21,6 +21,11 @@
+ 
+ #include <asm/pgtable.h>
+ 
++EXPORT_SYMBOL(delete_from_swap_cache);
++EXPORT_SYMBOL(read_swap_cache_async);
++extern bool mempipe_installed;
++extern int (* __my_swap_readpage)(struct page *page);
++
+ /*
+  * swapper_space is a fiction, retained to simplify the path through
+  * vmscan's shrink_page_list.
+@@ -310,6 +315,8 @@
+ 	struct page *found_page, *new_page = NULL;
+ 	int err;
+ 
++	struct swap_info_struct *sis;
++
+ 	do {
+ 		/*
+ 		 * First check the swap cache.  Since this is normally
+@@ -376,7 +383,23 @@
+ 			 * Initiate read into locked page and return.
+ 			 */
+ 			lru_cache_add_anon(new_page);
+-			swap_readpage(new_page);
++			//swap_readpage(new_page);
++			
++			pgoff_t offset;
++        		swp_entry_t entry;
++		
++			entry.val = page_private(new_page);
++        		offset = swp_offset(entry);
++					
++	
++			sis = page_swap_info(new_page);
++			
++			if(mempipe_installed == true && (offset > 0) && sis->is_shm == 1) {
++                                __my_swap_readpage(new_page);
++                        }else{
++                                swap_readpage(new_page);
++                        }
++
+ 			return new_page;
+ 		}
+ 		radix_tree_preload_end();
+diff -ur linux-3.14.4/mm/swapfile.c linux-3.14.4-fastswap/mm/swapfile.c
+--- linux-3.14.4/mm/swapfile.c	2014-05-13 07:33:14.000000000 -0400
++++ linux-3.14.4-fastswap/mm/swapfile.c	2016-11-06 19:43:59.000000000 -0500
+@@ -46,6 +46,36 @@
+ static sector_t map_swap_entry(swp_entry_t, struct block_device**);
+ 
+ DEFINE_SPINLOCK(swap_lock);
++
++EXPORT_SYMBOL(swap_lock);
++EXPORT_SYMBOL(swap_free);
++EXPORT_SYMBOL(init_mm);
++EXPORT_SYMBOL(mmlist_lock);
++EXPORT_SYMBOL(try_to_unuse);
++
++/*Initial size of memswap*/
++static unsigned long memswap_init_size;
++static int next_swap = 0;
++
++void set_memswap_init_size(unsigned long init_size){
++	memswap_init_size = init_size;
++}
++EXPORT_SYMBOL(set_memswap_init_size);
++
++void switch_to_next_swap(void){
++	next_swap = 1;
++}
++EXPORT_SYMBOL(switch_to_next_swap);
++
++void back_to_default_swap(void){
++	next_swap = 0;
++}
++EXPORT_SYMBOL(back_to_default_swap);
++//#define PAGE_NUMS (1<<18) //256K pages -> 1GB
++
++extern struct swapin_mdata * (* __my_get_swapin_mdata)(unsigned long offset);
++extern bool mempipe_installed;
++
+ static unsigned int nr_swapfiles;
+ atomic_long_t nr_swap_pages;
+ /* protected with swap_lock. reading in vm_swap_full() doesn't need lock */
+@@ -467,13 +497,16 @@
+ }
+ 
+ static unsigned long scan_swap_map(struct swap_info_struct *si,
+-				   unsigned char usage)
++				   unsigned char usage,
++				   int type)
+ {
+ 	unsigned long offset;
+ 	unsigned long scan_base;
+ 	unsigned long last_in_cluster = 0;
+ 	int latency_ration = LATENCY_LIMIT;
+ 
++	if((type == 0)&&(next_swap == 1))
++		goto no_page;
+ 	/*
+ 	 * We try to cluster swap pages by allocating them sequentially
+ 	 * in swap.  Once we've allocated SWAPFILE_CLUSTER pages this
+@@ -694,10 +727,12 @@
+ 
+ 		spin_unlock(&swap_lock);
+ 		/* This is called for allocating swap entry for cache */
+-		offset = scan_swap_map(si, SWAP_HAS_CACHE);
++		
++		offset = scan_swap_map(si, SWAP_HAS_CACHE, type);
+ 		spin_unlock(&si->lock);
+-		if (offset)
++		if (offset){
+ 			return swp_entry(type, offset);
++		}
+ 		spin_lock(&swap_lock);
+ 		next = swap_list.next;
+ 	}
+@@ -719,7 +754,7 @@
+ 	if (si && (si->flags & SWP_WRITEOK)) {
+ 		atomic_long_dec(&nr_swap_pages);
+ 		/* This is called for allocating swap entry, not cache */
+-		offset = scan_swap_map(si, 1);
++		offset = scan_swap_map(si, 1, type);
+ 		if (offset) {
+ 			spin_unlock(&si->lock);
+ 			return swp_entry(type, offset);
+@@ -1364,6 +1399,13 @@
+ 	unsigned int i = 0;
+ 	int retval = 0;
+ 
++	struct swapin_mdata* sm = NULL;
++	unsigned long index1 = 0, index2 = 0, index3 = 0;
++        long long total0 = 0, total1 = 0, total2 = 0, total3 = 0;
++        ktime_t start0, start1, start2, start3, end0, end1, end2, end3;
++
++	start0 = ktime_get();
++	
+ 	/*
+ 	 * When searching mms for an entry, a good strategy is to
+ 	 * start at the first mm we freed the previous entry from
+@@ -1386,12 +1428,14 @@
+ 	 * one pass through swap_map is enough, but not necessarily:
+ 	 * there are races when an instance of an entry might be missed.
+ 	 */
++
+ 	while ((i = find_next_to_unuse(si, i, frontswap)) != 0) {
+ 		if (signal_pending(current)) {
+ 			retval = -EINTR;
+ 			break;
+ 		}
+ 
++		//__asm__ volatile (".byte 0x0f, 0x31" : "=A" (start1));
+ 		/*
+ 		 * Get a page for the entry, using the existing swap
+ 		 * cache page if there is one.  Otherwise, get a clean
+@@ -1399,8 +1443,12 @@
+ 		 */
+ 		swap_map = &si->swap_map[i];
+ 		entry = swp_entry(type, i);
++		
++		//__asm__ volatile (".byte 0x0f, 0x31" : "=A" (start2));
++		start2 = ktime_get();
+ 		page = read_swap_cache_async(entry,
+ 					GFP_HIGHUSER_MOVABLE, NULL, 0);
++
+ 		if (!page) {
+ 			/*
+ 			 * Either swap_duplicate() failed because entry
+@@ -1419,12 +1467,18 @@
+ 			if (!swcount || swcount == SWAP_MAP_BAD)
+ 				continue;
+ 			retval = -ENOMEM;
++			
+ 			break;
+ 		}
+ 
++        	//__asm__ volatile (".byte 0x0f, 0x31" : "=A" (end2));
++		end2 = ktime_get();
++		total2 += ktime_to_ns(ktime_sub(end2, start2));
++		index2++;		
+ 		/*
+ 		 * Don't hold on to start_mm if it looks like exiting.
+ 		 */
++		start1 = ktime_get();	
+ 		if (atomic_read(&start_mm->mm_users) == 1) {
+ 			mmput(start_mm);
+ 			start_mm = &init_mm;
+@@ -1441,6 +1495,7 @@
+ 		 */
+ 		wait_on_page_locked(page);
+ 		wait_on_page_writeback(page);
++		
+ 		lock_page(page);
+ 		wait_on_page_writeback(page);
+ 
+@@ -1455,9 +1510,40 @@
+ 				break;
+ 			continue;
+ 		}
++                end1 = ktime_get();
++		total1 += ktime_to_ns(ktime_sub(end1, start1));/*index does not increase here, another start1/end1 at the end of this func*/
++
++		//__asm__ volatile (".byte 0x0f, 0x31" : "=A" (start3));
++		start3 = ktime_get();	
++		/*
+ 		if (swap_count(swcount) && start_mm != &init_mm)
+ 			retval = unuse_mm(start_mm, entry, page);
++		*/
++
++		if(mempipe_installed == false || si->is_shm == 0) {
++                        if (swap_count(swcount) && start_mm != &init_mm)
++                                retval = unuse_mm(start_mm, entry, page);
++                }else{
++                        if (swap_count(swcount) && start_mm != &init_mm) {
++                                sm = __my_get_swapin_mdata(i);
++                                if(sm == NULL) {
++                                        retval = unuse_mm(start_mm, entry, page);
++                                }else{
++                                        retval = unuse_pte(sm->vma, sm->pmd, sm->address, entry, page);
++                                        retval = (retval < 0)?retval:0;
++                                }
++
++                        }
++                }
++
++                //__asm__ volatile (".byte 0x0f, 0x31" : "=A" (end3));
++		//total3 += end3 - start3;
++		end3 = ktime_get();
++		total3 += ktime_to_ns(ktime_sub(end3, start3));
++                index3++;
+ 
++		//__asm__ volatile (".byte 0x0f, 0x31" : "=A" (start1));
++		start1 = ktime_get();
+ 		if (swap_count(*swap_map)) {
+ 			int set_start_mm = (*swap_map >= swcount);
+ 			struct list_head *p = &start_mm->mmlist;
+@@ -1561,13 +1647,34 @@
+ 		 * interactive performance.
+ 		 */
+ 		cond_resched();
+-		if (frontswap && pages_to_unuse > 0) {
++
++		//[fastswap] modified
++		//if (frontswap && pages_to_unuse > 0) {
++		if (pages_to_unuse > 0) {
+ 			if (!--pages_to_unuse)
+ 				break;
+ 		}
+-	}
+ 
++                //__asm__ volatile (".byte 0x0f, 0x31" : "=A" (end1));
++		//total1 += end1 - start1;
++                end1 = ktime_get();
++		total1 += ktime_to_ns(ktime_sub(end1, start1));
++		index1++;
++	}
++	//[fastswap] modified
+ 	mmput(start_mm);
++
++	//__asm__ volatile (".byte 0x0f, 0x31" : "=A" (end0));
++	//total0 += end0 - start0;
++	end0 = ktime_get();
++	total0 = ktime_to_ns(ktime_sub(end0, start0));
++
++	printk("index1 = %ld, index2 = %ld, inde3 = %ld\n", index1, index2, index3);
++	if(index1&&index2&&index3 != 0){
++		printk("total = %lld\n", total0);
++		printk("perpage: read = %lld, unuse_mm = %lld, other = %lld\n", total2/index2, total3/index3, total1/index1);
++	}
++
+ 	return retval;
+ }
+ 
+@@ -1634,7 +1741,7 @@
+ 	entry.val = page_private(page);
+ 	return map_swap_entry(entry, bdev);
+ }
+-
++EXPORT_SYMBOL(map_swap_page);
+ /*
+  * Free all of a swapdev's extent information
+  */
+@@ -1855,6 +1962,7 @@
+ 	if (type < 0) {
+ 		err = -EINVAL;
+ 		spin_unlock(&swap_lock);
++		printk("swapoff 1...\n");
+ 		goto out_dput;
+ 	}
+ 	if (!security_vm_enough_memory_mm(current->mm, p->pages))
+@@ -1862,6 +1970,7 @@
+ 	else {
+ 		err = -ENOMEM;
+ 		spin_unlock(&swap_lock);
++		printk("swapoff 2...\n");
+ 		goto out_dput;
+ 	}
+ 	if (prev < 0)
+@@ -1907,6 +2016,7 @@
+ 
+ 	/* wait for anyone still in scan_swap_map */
+ 	p->highest_bit = 0;		/* cuts scans short */
++	/*
+ 	while (p->flags >= SWP_SCANNING) {
+ 		spin_unlock(&p->lock);
+ 		spin_unlock(&swap_lock);
+@@ -1914,6 +2024,7 @@
+ 		spin_lock(&swap_lock);
+ 		spin_lock(&p->lock);
+ 	}
++	*/
+ 
+ 	swap_file = p->swap_file;
+ 	old_block_size = p->old_block_size;
+@@ -2228,12 +2339,15 @@
+ 	 */
+ 	maxpages = swp_offset(pte_to_swp_entry(
+ 			swp_entry_to_pte(swp_entry(0, ~0UL)))) + 1;
++
+ 	last_page = swap_header->info.last_page;
++
+ 	if (last_page > maxpages) {
+ 		pr_warn("Truncating oversized swap area, only using %luk out of %luk\n",
+ 			maxpages << (PAGE_SHIFT - 10),
+ 			last_page << (PAGE_SHIFT - 10));
+ 	}
++	
+ 	if (maxpages > last_page) {
+ 		maxpages = last_page + 1;
+ 		/* p->max is an unsigned int: don't overflow it */
+@@ -2245,6 +2359,15 @@
+ 	if (!maxpages)
+ 		return 0;
+ 	swapfilepages = i_size_read(inode) >> PAGE_SHIFT;
++	
++	//printk("swapfilepages = %lu, maxpages = %lu\n", swapfilepages, maxpages);
++
++	if(maxpages > swapfilepages){
++		maxpages = swapfilepages;
++		swap_header->info.last_page = maxpages - 1;
++		last_page = maxpages - 1;
++	}
++
+ 	if (swapfilepages && maxpages > swapfilepages) {
+ 		pr_warn("Swap area shorter than signature indicates\n");
+ 		return 0;
+@@ -2385,6 +2508,8 @@
+ 	if (IS_ERR(p))
+ 		return PTR_ERR(p);
+ 
++	p->shm = NULL;
++
+ 	INIT_WORK(&p->discard_work, swap_discard_work);
+ 
+ 	name = getname(specialfile);
+@@ -2434,6 +2559,14 @@
+ 	}
+ 	swap_header = kmap(page);
+ 
++	/*The first (highest priority) swap partition is the shm area.
++         *Size of the shm area is explicitely specified
++         */
++	if(p->is_shm == 1 && mempipe_installed == true) {//nr_swapfiles of the first swap partition equals to 1
++                swap_header->info.last_page = memswap_init_size;
++                swap_header->info.nr_badpages = 0;
++        }
++
+ 	maxpages = read_swap_header(p, swap_header, inode);
+ 	if (unlikely(!maxpages)) {
+ 		error = -EINVAL;
+@@ -2523,9 +2656,16 @@
+ 		  (swap_flags & SWAP_FLAG_PRIO_MASK) >> SWAP_FLAG_PRIO_SHIFT;
+ 	enable_swap_info(p, prio, swap_map, cluster_info, frontswap_map);
+ 
+-	pr_info("Adding %uk swap on %s.  "
++	if(p->prio == -1){
++		p->is_shm = 1;
++	}else{
++		p->is_shm = 0;
++	}
++	
++
++	pr_info("Adding %uk swap on %s (is_shm = %d).  "
+ 			"Priority:%d extents:%d across:%lluk %s%s%s%s%s\n",
+-		p->pages<<(PAGE_SHIFT-10), name->name, p->prio,
++		p->pages<<(PAGE_SHIFT-10), name->name, p->is_shm, p->prio,
+ 		nr_extents, (unsigned long long)span<<(PAGE_SHIFT-10),
+ 		(p->flags & SWP_SOLIDSTATE) ? "SS" : "",
+ 		(p->flags & SWP_DISCARDABLE) ? "D" : "",
+@@ -2572,6 +2712,7 @@
+ 		putname(name);
+ 	if (inode && S_ISREG(inode->i_mode))
+ 		mutex_unlock(&inode->i_mutex);
++
+ 	return error;
+ }
+ 
+@@ -2718,6 +2859,7 @@
+ 	BUG_ON(!PageSwapCache(page));
+ 	return swap_info[swp_type(swap)];
+ }
++EXPORT_SYMBOL(page_swap_info);
+ 
+ /*
+  * out-of-line __page_file_ methods to avoid include hell.
